@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>入口形态对比 · A 与 B</title>
+<style>
+  :root{
+    --bg:#F7F7F9; --card:#FFFFFF; --line:#E8E8EC; --line-strong:#DCDCE2;
+    --fg:#17171B; --fg2:#57575F; --fg3:#8B8B95;
+    --hover:#F2F2F5; --active:#ECECF1; --brand:#1B1B20;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--fg);padding:28px 36px 40px;-webkit-font-smoothing:antialiased}
+  h1{font-size:15px;line-height:24px;font-weight:600;margin-bottom:2px}
+  .sub{font-size:12px;line-height:18px;color:var(--fg3);margin-bottom:22px}
+  .lab{display:flex;align-items:baseline;gap:8px;font-size:12px;line-height:18px;color:var(--fg2);margin:0 0 8px 4px}
+  .lab b{font-weight:600;color:var(--fg)}
+  .lab em{font-style:normal;color:var(--fg3)}
+  .composer{width:720px;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:10px 12px 10px;box-shadow:0 1px 2px rgba(20,20,26,.04),0 8px 24px rgba(20,20,26,.04);margin-bottom:26px}
+  .field{min-height:40px;padding:2px 6px 8px;font-size:15px;line-height:24px;color:var(--fg3)}
+  .bar{display:flex;align-items:center;justify-content:space-between;height:32px}
+  .left,.right{display:flex;align-items:center;gap:8px}
+  .ib{width:28px;height:28px;border-radius:8px;border:0;background:transparent;display:grid;place-items:center;color:var(--fg2);cursor:pointer}
+  .ib:hover{background:var(--hover)}
+  .ib.on{background:var(--active);color:var(--fg)}
+  .plus{width:32px;height:32px;border-radius:50%;background:#F0F0F3;border:0;display:grid;place-items:center;color:var(--fg2)}
+  .model{font-size:12px;line-height:18px;color:var(--fg3);padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+  .send{width:32px;height:32px;border-radius:50%;background:var(--brand);border:0;display:grid;place-items:center;color:#fff}
+
+  /* B1：描边幽灵按钮 */
+  .chip{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:8px;border:1px solid var(--line-strong);background:#fff;font-family:var(--font);font-size:12px;line-height:18px;color:var(--fg2);cursor:pointer}
+  .chip:hover{background:var(--hover)}
+  .chip.on{background:var(--hover);color:var(--fg);border-color:#CFCFD6}
+  /* B2：浅底胶囊 */
+  .chip.solid{background:#F1F1F4;border-color:transparent;color:var(--fg)}
+  .chip.solid:hover{background:#EBEBEF}
+  .chip.solid.on{background:#E6E6EB}
+  .dim{color:var(--fg3);font-size:11px;line-height:16px;margin:-18px 0 24px 4px}
+</style>
+</head>
+<body>
+  <h1>入口形态对比</h1>
+  <div class="sub">同一输入框、同一工具栏位置（+ 之后），只改入口本身；其余保持已确认的稿子不变。</div>
+
+  <div class="lab"><b>A</b> 纯图标 28×28 <em>· 零占位，打开态才显底色</em></div>
+  <div class="composer">
+    <div class="field">写个 README，包含安装、升级与已知限制</div>
+    <div class="bar">
+      <div class="left">
+        <button class="plus"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 3.6v8.8M3.6 8h8.8" stroke-linecap="round"/></svg></button>
+        <button class="ib on"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.2" y="2.6" width="9.6" height="10.8" rx="2"/><path d="M5.9 6.1h4.2M5.9 8.5h4.2M5.9 10.9h2.4" stroke-linecap="round"/></svg></button>
+      </div>
+      <div class="right"><span class="model">V4.1 Flash</span><button class="send"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 12.4V3.9M4.3 7.4 8 3.7l3.7 3.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    </div>
+  </div>
+
+  <div class="lab"><b>B1</b> 文字按钮 · 描边 <em>· 76×28，图标 14 + 12px 文案</em></div>
+  <div class="composer">
+    <div class="field">写个 README，包含安装、升级与已知限制</div>
+    <div class="bar">
+      <div class="left">
+        <button class="plus"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 3.6v8.8M3.6 8h8.8" stroke-linecap="round"/></svg></button>
+        <button class="chip"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.2" y="2.6" width="9.6" height="10.8" rx="2"/><path d="M5.9 6.1h4.2M5.9 8.5h4.2M5.9 10.9h2.4" stroke-linecap="round"/></svg>提示词</button>
+      </div>
+      <div class="right"><span class="model">V4.1 Flash</span><button class="send"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 12.4V3.9M4.3 7.4 8 3.7l3.7 3.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    </div>
+  </div>
+
+  <div class="lab"><b>B2</b> 文字按钮 · 浅底胶囊 <em>· 同尺寸，只换填充</em></div>
+  <div class="composer">
+    <div class="field">写个 README，包含安装、升级与已知限制</div>
+    <div class="bar">
+      <div class="left">
+        <button class="plus"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 3.6v8.8M3.6 8h8.8" stroke-linecap="round"/></svg></button>
+        <button class="chip solid"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.2" y="2.6" width="9.6" height="10.8" rx="2"/><path d="M5.9 6.1h4.2M5.9 8.5h4.2M5.9 10.9h2.4" stroke-linecap="round"/></svg>提示词</button>
+      </div>
+      <div class="right"><span class="model">V4.1 Flash</span><button class="send"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 12.4V3.9M4.3 7.4 8 3.7l3.7 3.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+    </div>
+  </div>
+</body>
+</html>

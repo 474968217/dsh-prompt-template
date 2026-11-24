@@ -1,0 +1,61 @@
+{
+  "name": "dsh-prompt-template",
+  "version": "0.1.0",
+  "description": "Prompt templates for DeepSeek Harness Web: pick a saved prompt beside the composer and insert it at the caret.",
+  "license": "MIT",
+  "author": "474968217",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/474968217/dsh-prompt-template.git"
+  },
+  "bugs": {
+    "url": "https://github.com/474968217/dsh-prompt-template/issues"
+  },
+  "scripts": {
+    "check": "node --check lib/index.js && node --check lib/store.js && node --check lib/client.js",
+    "test": "node --test"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json",
+    "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "lib/*.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/*.json",
+    "README.md",
+    "README.zh-CN.md",
+    "docs/plan.md",
+    "docs/ui-spec-prompt-picker.md",
+    "docs/verification.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20",
+    "dsh": ">=0.2.3-alpha.2 <0.3.0-0"
+  },
+  "dsh": {
+    "manifestVersion": 1,
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [],
+      "platform": "web"
+    }
+  },
+  "keywords": [
+    "dsh-plugin",
+    "dsh",
+    "deepseek-harness",
+    "prompt",
+    "templates"
+  ]
+}

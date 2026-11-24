@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>DSH 提示词模板 · 交互稿</title>
+<style>
+  :root{
+    --bg:#F7F7F9; --card:#FFFFFF; --line:#E8E8EC; --line-strong:#DCDCE2;
+    --fg:#17171B; --fg2:#57575F; --fg3:#8B8B95;
+    --hover:#F2F2F5; --active:#ECECF1; --brand:#1B1B20; --err:#D93A3A;
+    --r8:8px; --r12:12px; --r16:16px; --r20:20px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--font);background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased}
+  .app{display:flex;height:100vh;overflow:hidden}
+
+  /* ---------- 左侧极简栏（仅提供上下文，不参与评审） ---------- */
+  .rail{width:52px;flex:none;display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 0;border-right:1px solid var(--line);background:#FBFBFC}
+  .rail .logo{width:24px;height:24px;border-radius:7px;background:var(--brand)}
+  .rail i{display:block;width:20px;height:20px;border-radius:6px;background:#EDEDF1}
+  .rail i.on{background:#E0E0E6}
+
+  /* ---------- 主区 ---------- */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .thread{flex:1;overflow:hidden;padding:36px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:22px}
+  .thread .col{width:min(720px,86%);display:flex;flex-direction:column;gap:22px}
+  .bubble{font-size:14px;line-height:24px;color:#9C9CA6}
+  .bubble.user{align-self:flex-end;background:#F1F1F4;border-radius:16px;padding:10px 14px;max-width:62%}
+  .bubble.bot{color:#A7A7B0}
+
+  .composer-wrap{width:min(720px,86%);margin:18px auto 26px;position:relative}
+
+  /* ---------- 输入框卡片 ---------- */
+  .composer{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:12px 12px 10px;box-shadow:0 1px 2px rgba(20,20,26,.04),0 8px 24px rgba(20,20,26,.04)}
+  .field{min-height:56px;padding:6px 6px 10px;font-size:15px;line-height:24px;color:var(--fg3)}
+  .field .caret{display:inline-block;width:1px;height:18px;background:#2A2A31;vertical-align:-3px;margin-left:1px}
+  .bar{display:flex;align-items:center;justify-content:space-between;height:32px}
+  .bar-left,.bar-right{display:flex;align-items:center;gap:8px}
+  .bar-left{position:relative}
+  .tpl-wrap{position:relative;display:inline-flex}
+  .ib{width:28px;height:28px;border-radius:var(--r8);border:0;background:transparent;display:grid;place-items:center;color:var(--fg2);cursor:pointer}
+  .ib:hover{background:var(--hover)}
+  .ib.on{background:var(--active);color:var(--fg)}
+  .ib.plus{width:32px;height:32px;border-radius:50%;background:#F0F0F3;color:var(--fg2)}
+  .model{font-size:12px;line-height:18px;color:var(--fg3);padding:2px 8px;border-radius:999px;border:1px solid var(--line)}
+  .send{width:32px;height:32px;border-radius:50%;background:var(--brand);border:0;display:grid;place-items:center;color:#fff}
+
+  /* ---------- 浮层 ---------- */
+  .pop{position:absolute;left:0;bottom:calc(100% + 8px);width:408px;background:rgba(255,255,255,.94);backdrop-filter:blur(24px) saturate(160%);border:1px solid var(--line);border-radius:var(--r16);box-shadow:0 16px 40px rgba(18,18,24,.14),0 2px 6px rgba(18,18,24,.05);overflow:hidden}
+  .pop-search{display:flex;align-items:center;gap:8px;padding:10px 10px 8px}
+  .pop-search .box{flex:1;display:flex;align-items:center;gap:8px;height:34px;padding:0 10px;border:1px solid var(--line-strong);border-radius:var(--r8);background:#fff;color:var(--fg3)}
+  .pop-search .box span{font-size:13px;line-height:20px}
+  .pop-search .box .ph{color:#A2A2AC}
+  .pop-list{max-height:296px;overflow:hidden;padding:0 4px 4px}
+  .grp{font-size:11px;line-height:16px;font-weight:500;color:var(--fg3);padding:7px 8px 2px;letter-spacing:.02em}
+  .grp:not(:first-child){margin-top:4px}
+  .row{display:flex;align-items:center;gap:8px;height:34px;padding:0 8px;border-radius:var(--r12);cursor:pointer}
+  .row .t{flex:1;min-width:0;font-size:13px;line-height:20px;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .m{flex:none;font-size:11px;line-height:16px;color:var(--fg3);max-width:132px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .k{flex:none;width:18px;text-align:right;font-size:11px;color:var(--fg3);opacity:0}
+  .row:hover{background:var(--hover)}
+  .row.on{background:var(--active)}
+  .row.on .k{opacity:1}
+  .pop-foot{display:flex;align-items:center;justify-content:space-between;height:38px;padding:0 12px;border-top:1px solid var(--line);background:rgba(250,250,251,.7)}
+  .pop-foot button{display:flex;align-items:center;gap:6px;border:0;background:transparent;font-family:var(--font);font-size:12px;line-height:18px;color:var(--fg2);cursor:pointer;padding:0}
+  .pop-foot .hint{font-size:11px;color:var(--fg3)}
+
+  /* ---------- 标注 ---------- */
+  .anno{position:absolute;border:1px dashed #BFBFCA;border-radius:10px;pointer-events:none}
+  .anno b{position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);font-size:11px;font-weight:500;color:#6E6E7A;background:#fff;border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+
+  /* ---------- 管理对话框 ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(20,20,26,.22);display:grid;place-items:center}
+  .dlg{width:780px;max-height:86vh;background:#fff;border-radius:var(--r20);border:1px solid var(--line);box-shadow:0 24px 64px rgba(16,16,22,.2);display:flex;flex-direction:column;overflow:hidden}
+  .dlg-hd{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px}
+  .dlg-hd h3{font-size:16px;line-height:26px;font-weight:600}
+  .dlg-hd p{font-size:12px;line-height:18px;color:var(--fg3);margin-top:2px}
+  .dlg-bar{display:flex;align-items:center;gap:10px;padding:0 20px 14px}
+  .seg{display:flex;padding:2px;background:#F2F2F5;border-radius:var(--r8)}
+  .seg span{font-size:12px;line-height:18px;padding:5px 10px;border-radius:6px;color:var(--fg2)}
+  .seg span.on{background:#fff;color:var(--fg);box-shadow:0 1px 2px rgba(18,18,24,.08)}
+  .dlg-bar .grow{flex:1}
+  .btn-primary{display:flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:0;border-radius:var(--r8);background:var(--brand);color:#fff;font-family:var(--font);font-size:12px;cursor:pointer}
+  .dlg-body{overflow:hidden;padding:0 12px 12px;border-top:1px solid var(--line)}
+  .dgrp{font-size:12px;line-height:18px;font-weight:500;color:var(--fg2);padding:14px 8px 6px;display:flex;align-items:center;gap:8px}
+  .dgrp em{font-style:normal;font-weight:400;color:var(--fg3)}
+  .drow{display:flex;align-items:center;gap:12px;height:64px;padding:0 12px;border-radius:var(--r12)}
+  .drow:hover,.drow.hovered{background:var(--hover)}
+  .tile{width:32px;height:32px;flex:none;border-radius:10px;background:#F1F1F4;display:grid;place-items:center;color:var(--fg2)}
+  .drow .meta{flex:1;min-width:0}
+  .drow .meta b{display:block;font-size:14px;line-height:22px;font-weight:500;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .drow .meta span{display:block;font-size:12px;line-height:18px;color:var(--fg3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acts{display:flex;gap:2px;opacity:0}
+  .drow:hover .acts,.drow.hovered .acts{opacity:1}
+  .acts .ib{width:28px;height:28px;color:var(--fg3)}
+  .dlg-ft{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-top:1px solid var(--line);font-size:11px;line-height:16px;color:var(--fg3)}
+
+  /* ---------- 编辑表单 ---------- */
+  .fld{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+  .fld label{font-size:12px;line-height:18px;color:var(--fg2);font-weight:500}
+  .fld label em{font-style:normal;font-weight:400;color:var(--fg3);margin-left:4px}
+  .ctrl{display:flex;align-items:center;min-height:34px;padding:0 10px;border:1px solid var(--line-strong);border-radius:var(--r8);background:#fff;font-size:13px;line-height:20px;color:var(--fg)}
+  .ctrl.area{align-items:flex-start;min-height:118px;padding:10px 10px 12px;font-size:14px;line-height:24px;color:#2E2E36}
+  .ctrl .caret{display:inline-block;width:1px;height:18px;background:#2A2A31;vertical-align:-3px;margin-left:1px}
+  .fld .hint{font-size:11px;line-height:16px;color:var(--fg3)}
+  .fld-row{display:flex;gap:16px}
+  .fld-row .fld{flex:1}
+  .chips{display:flex;align-items:center;gap:6px;padding:0 8px;height:34px}
+  .chips span{font-size:11px;line-height:16px;padding:3px 8px;border-radius:999px;background:#F2F2F5;color:var(--fg2)}
+  .chips span.add{background:transparent;border:1px dashed var(--line-strong);color:var(--fg3)}
+  .seg.wide{width:100%;gap:2px}
+  .seg.wide span{flex:1;text-align:center;padding:6px 10px}
+  .sw{width:36px;height:20px;border-radius:999px;background:var(--brand);position:relative;flex:none}
+  .sw:after{content:"";position:absolute;right:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff}
+  .btn-ghost{height:30px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--r8);background:#fff;color:var(--fg2);font-family:var(--font);font-size:12px;cursor:pointer}
+  .btn-ghost:hover{background:var(--hover)}
+
+  /* ---------- 状态切换 ---------- */
+  body[data-v="closed"] .pop{display:none}
+  body[data-v="popover"] .anno-entry{display:none}
+  body[data-v="manage"] .pop{display:none}
+  body[data-v="closed"] .scrim,body[data-v="popover"] .scrim{display:none}
+  body:not([data-v="closed"]) .anno-entry{display:none}
+  #dlgEditor .dlg-body{overflow-y:auto;min-height:0}
+  #dlgEditor{display:none;max-height:calc(100vh - 64px)}
+  body[data-v="editor"] #dlgList{display:none}
+  body[data-v="editor"] #dlgEditor{display:flex}
+</style>
+</head>
+<body data-v="popover">
+<div class="app">
+  <aside class="rail">
+    <div class="logo"></div>
+    <i class="on"></i><i></i><i></i><i></i><i></i>
+  </aside>
+  <div class="main">
+    <div class="thread">
+      <div class="col">
+        <div class="bubble user">帮我把这个插件推到 GitHub，顺便写个 README</div>
+        <div class="bubble bot">我先看一下仓库现状：远端已建好但没有任何提交，本地目录是空的……</div>
+      </div>
+    </div>
+
+    <div class="composer-wrap">
+      <!-- 浮层 -->
+      <div class="pop" role="listbox">
+        <div class="pop-search">
+          <div class="box">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.5 13.5" stroke-linecap="round"/></svg>
+            <span class="ph">搜索标题或正文</span>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#8B8B95" stroke-width="1.4"><path d="M2.8 4.6h10.4M2.8 8h10.4M2.8 11.4h6.2" stroke-linecap="round"/></svg>
+        </div>
+        <div class="pop-list">
+          <div class="grp">项目 · dsh-prompt-template（3）</div>
+          <div class="row on"><span class="t">提交前自检：插件清单与 README 一致性</span><span class="m">工程 · 86 字</span><span class="k">↵</span></div>
+          <div class="row"><span class="t">按专家结论写实现计划</span><span class="m">计划 · 42 字</span><span class="k">↵</span></div>
+          <div class="row"><span class="t">生成一次完整的 diff 摘要</span><span class="m">工程 · 31 字</span><span class="k">↵</span></div>
+          <div class="grp">全局（4）</div>
+          <div class="row"><span class="t">把这段需求拆成可验收的任务</span><span class="m">计划 · 55 字</span><span class="k">↵</span></div>
+          <div class="row"><span class="t">用中文重写，去掉口语</span><span class="m">写作 · 24 字</span><span class="k">↵</span></div>
+          <div class="row"><span class="t">先给结论，再给三条依据</span><span class="m">写作 · 28 字</span><span class="k">↵</span></div>
+        </div>
+        <div class="pop-foot">
+          <button>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 3.2v9.6M3.2 8h9.6" stroke-linecap="round"/></svg>
+            管理模板…
+          </button>
+          <span class="hint">↑↓ 选择 · ↵ 插入 · Esc 关闭</span>
+        </div>
+      </div>
+
+      <!-- 输入框 -->
+      <div class="composer">
+        <div class="field">写个 README，包含安装、升级与已知限制<span class="caret"></span></div>
+        <div class="bar">
+          <div class="bar-left">
+            <button class="ib plus" aria-label="添加">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 3.6v8.8M3.6 8h8.8" stroke-linecap="round"/></svg>
+            </button>
+            <span class="tpl-wrap">
+              <button class="ib on" id="trigger" aria-expanded="true" aria-label="提示词模板">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.2" y="2.6" width="9.6" height="10.8" rx="2"/><path d="M5.9 6.1h4.2M5.9 8.5h4.2M5.9 10.9h2.4" stroke-linecap="round"/></svg>
+              </button>
+              <span class="anno anno-entry" style="width:36px;height:36px;left:-4px;top:-4px"><b>① 提示词模板入口（28×28，图标 16）</b></span>
+            </span>
+          </div>
+          <div class="bar-right">
+            <span class="model">V4.1 Flash</span>
+            <button class="send" aria-label="发送">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 12.4V3.9M4.3 7.4 8 3.7l3.7 3.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="anno anno-note" style="left:36px;top:-6px;width:408px;height:0;display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 管理对话框 -->
+<div class="scrim">
+  <div class="dlg" id="dlgList" role="dialog" aria-label="提示词模板">
+    <div class="dlg-hd">
+      <div>
+        <h3>提示词模板</h3>
+        <p>项目模板只在对应工作区出现；全局模板在所有会话出现。</p>
+      </div>
+      <button class="ib" aria-label="关闭">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="dlg-bar">
+      <div class="box" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:1px solid var(--line-strong);border-radius:8px;width:240px;color:var(--fg3)">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.5 13.5" stroke-linecap="round"/></svg>
+        <span style="font-size:12px;color:#A2A2AC">搜索</span>
+      </div>
+      <div class="seg"><span>全部</span><span class="on">项目</span><span>全局</span></div>
+      <div class="grow"></div>
+      <button class="btn-primary">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3.6v8.8M3.6 8h8.8" stroke-linecap="round"/></svg>
+        新建模板
+      </button>
+    </div>
+    <div class="dlg-body">
+      <div class="dgrp">项目 · dsh-prompt-template <em>3 条</em></div>
+      <div class="drow hovered">
+        <div class="tile"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.2" y="2.6" width="9.6" height="10.8" rx="2"/><path d="M5.9 6.1h4.2M5.9 8.5h4.2M5.9 10.9h2.4" stroke-linecap="round"/></svg></div>
+        <div class="meta"><b>提交前自检：插件清单与 README 一致性</b><span>工程 · 86 字 · 最近使用 12 分钟前</span></div>
+        <div class="acts">
+          <button class="ib" aria-label="上移"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 12.2V4.2M4.6 7.6 8 4.2l3.4 3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="ib" aria-label="下移"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3.8v8M4.6 8.4 8 11.8l3.4-3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="ib" aria-label="更多"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.6" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.4" cy="8" r="1.3"/></svg></button>
+        </div>
+      </div>
+      <div class="drow">
+        <div class="tile"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.2" y="2.6" width="9.6" height="10.8" rx="2"/><path d="M5.9 6.1h4.2M5.9 8.5h4.2M5.9 10.9h2.4" stroke-linecap="round"/></svg></div>
+        <div class="meta"><b>按专家结论写实现计划</b><span>计划 · 42 字 · 最近使用 1 小时前</span></div>
+        <div class="acts">
+          <button class="ib" aria-label="上移"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 12.2V4.2M4.6 7.6 8 4.2l3.4 3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="ib" aria-label="下移"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3.8v8M4.6 8.4 8 11.8l3.4-3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="ib" aria-label="更多"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.6" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.4" cy="8" r="1.3"/></svg></button>
+        </div>
+      </div>
+      <div class="dgrp">全局 <em>4 条</em></div>
+      <div class="drow">
+        <div class="tile"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.2" y="2.6" width="9.6" height="10.8" rx="2"/><path d="M5.9 6.1h4.2M5.9 8.5h4.2M5.9 10.9h2.4" stroke-linecap="round"/></svg></div>
+        <div class="meta"><b>把这段需求拆成可验收的任务</b><span>计划 · 55 字 · 最近使用 昨天</span></div>
+        <div class="acts">
+          <button class="ib" aria-label="上移"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 12.2V4.2M4.6 7.6 8 4.2l3.4 3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="ib" aria-label="下移"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3.8v8M4.6 8.4 8 11.8l3.4-3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button class="ib" aria-label="更多"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.6" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="12.4" cy="8" r="1.3"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="dlg-ft"><span>共 7 条 · 项目 3 · 全局 4</span><span>Esc 关闭</span></div>
+  </div>
+
+  <div class="dlg" id="dlgEditor" role="dialog" aria-label="编辑模板" style="width:680px">
+    <div class="dlg-hd">
+      <div style="display:flex;align-items:center;gap:10px">
+        <button class="ib" aria-label="返回列表">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9.6 3.6 5.2 8l4.4 4.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div>
+          <h3>编辑模板</h3>
+          <p>插入时只写入正文，不会自动发送。</p>
+        </div>
+      </div>
+      <button class="ib" aria-label="关闭">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body" style="border-top:1px solid var(--line);padding:16px 20px 4px">
+      <div class="fld">
+        <label>名称 <em>1–60 字</em></label>
+        <div class="ctrl">提交前自检：插件清单与 README 一致性</div>
+      </div>
+      <div class="fld">
+        <label>正文 <em>86 字</em></label>
+        <div class="ctrl area">检查 package.json 的 dsh.bundle.patch、exports、files 与 README 的安装说明是否一致；列出不一致项并给出修正建议。<span class="caret"></span></div>
+      </div>
+      <div class="fld-row">
+        <div class="fld">
+          <label>分类 <em>可选</em></label>
+          <div class="ctrl">工程</div>
+        </div>
+        <div class="fld">
+          <label>标签 <em>最多 5 个</em></label>
+          <div class="ctrl chips"><span>自检</span><span>发布</span><span class="add">+ 添加</span></div>
+        </div>
+      </div>
+      <div class="fld">
+        <label>作用域</label>
+        <div class="seg wide"><span class="on">项目 · dsh-prompt-template</span><span>全局</span></div>
+        <span class="hint">编辑时不可更改；需要跨作用域时用「另存为」新建一条</span>
+      </div>
+      <div class="fld" style="flex-direction:row;align-items:center;justify-content:space-between;padding-bottom:4px">
+        <div>
+          <label style="margin:0">置顶</label>
+          <div class="hint" style="margin-top:2px">在浮层的项目组里排最前</div>
+        </div>
+        <span class="sw"></span>
+      </div>
+    </div>
+    <div class="dlg-ft" style="justify-content:flex-end;gap:8px">
+      <button class="btn-ghost">取消</button>
+      <button class="btn-primary">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  var v = new URLSearchParams(location.search).get('v') || 'popover';
+  document.body.dataset.v = v;
+</script>
+</body>
+</html>

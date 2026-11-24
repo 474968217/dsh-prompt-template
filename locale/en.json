@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Prompt templates",
+    "description": "Choose a saved prompt beside the composer and insert it at the caret without sending it. Create, edit, search, pin and reorder templates; make each available globally or in selected project directories. Templates are stored by the DSH Host and shared across its sessions. Project matching uses the session's exact working directory. Supports Chinese and English."
+  }
+}
