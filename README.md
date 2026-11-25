@@ -44,6 +44,8 @@ For local development, install the checkout's absolute directory through Plugin 
 3. Open **Manage templates…** to create or edit templates, pin or reorder them, or delete them after confirmation.
 4. For a project-specific template, choose **Selected projects** and select one or more directories. You can change this scope when editing.
 
+The manager's left pane handles selection and ordering. Pin and delete actions belong to the current template's header on the right; deletion names the template, and Save/Cancel stay in a fixed footer. Narrow windows switch between library and editor views while protecting unsaved edits when going back.
+
 Combine search with checked categories and tags in the manager: selections within a group match any value; different groups must all match. Drag row handles to reorder, or focus a handle and press ↑ / ↓. When filtering, only visible positions change; hidden rows keep their positions. Click existing categories and tags in the editor to reuse them, or type new values.
 
 Project matching uses the conversation's **exact working directory**, after path normalization. A template for `/work/app` does not automatically appear in `/work/app/subdir`. On Windows, path comparison is case-insensitive. The manager lets you manage templates from other projects as well; the picker only offers templates available in the current conversation.
