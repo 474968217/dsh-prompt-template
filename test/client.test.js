@@ -55,6 +55,84 @@ test("editing a template retains its scope and body through draft conversion", (
   assert.deepEqual(plain(helpers.fromDraft(helpers.toDraft(item))), item);
 });
 
+test("manager choices come from the full library and preserve first occurrence", () => {
+  const items = [
+    { category: "开发", tags: ["排障", "审查"] },
+    { category: "开发", tags: ["排障", "测试"] },
+    { category: "写作", tags: [] },
+    { category: "", tags: [] },
+    { category: " 开发 ", tags: [" 排障 ", " "] },
+  ];
+  assert.deepEqual(plain(helpers.collectTemplateChoices(items)), {
+    categories: ["开发", "写作"], tags: ["排障", "审查", "测试"],
+  });
+});
+
+test("manager checkbox filters use OR within dimensions and AND across dimensions and query", () => {
+  const items = [
+    { id: "a", title: "修复接口", category: "开发", tags: [" 排障 "] },
+    { id: "b", title: "修复文案", category: "写作", tags: ["排障", "审查"] },
+    { id: "c", title: "测试接口", category: "开发", tags: ["测试"] },
+    { id: "d", title: "修复设计", category: "设计", tags: ["审查"] },
+  ];
+  const ids = (...args) => plain(helpers.filterManageTemplates(items, ...args)).map((item) => item.id);
+  assert.deepEqual(ids("", [], []), ["a", "b", "c", "d"]);
+  assert.deepEqual(ids("修复", ["开发", "写作"], ["排障", "测试"]), ["a", "b"]);
+  assert.deepEqual(ids("接口", ["开发"], ["测试"]), ["c"]);
+  assert.deepEqual(ids("", ["不存在"], []), []);
+});
+
+const orderItems = ["a", "hidden-1", "b", "hidden-2", "c"].map((id) => ({ id }));
+const visibleIds = ["a", "b", "c"];
+
+test("drag ordering preserves hidden slots and supports before and after drops", () => {
+  assert.deepEqual(plain(helpers.reorderVisibleIds(orderItems, visibleIds, "c", "a", "before")), ["c", "hidden-1", "a", "hidden-2", "b"]);
+  assert.deepEqual(plain(helpers.reorderVisibleIds(orderItems, visibleIds, "a", "c", "after")), ["b", "hidden-1", "c", "hidden-2", "a"]);
+  assert.deepEqual(plain(helpers.reorderVisibleIds(orderItems, visibleIds, "b", "c", "before")), orderItems.map((item) => item.id));
+  assert.deepEqual(plain(helpers.reorderVisibleIds(orderItems, visibleIds, "absent", "a")), orderItems.map((item) => item.id));
+  assert.deepEqual(plain(helpers.reorderVisibleIds(orderItems, visibleIds, "a", "a")), orderItems.map((item) => item.id));
+});
+
+test("drag ordering rejects stale or invalid visible orders without dropping ids", () => {
+  const original = orderItems.map((item) => item.id);
+  for (const visible of [["b", "a", "c"], ["a", "a", "c"], ["a", "b", "absent"]]) {
+    assert.deepEqual(plain(helpers.reorderVisibleIds(orderItems, visible, "a", "c")), original);
+  }
+  assert.deepEqual(plain(helpers.reorderVisibleIds(orderItems, visibleIds, "a", "c", "invalid")), original);
+});
+
+test("keyboard ordering moves within visible rows and clamps at boundaries", () => {
+  assert.deepEqual(plain(helpers.moveVisibleIds(orderItems, visibleIds, "a", 1)), ["b", "hidden-1", "a", "hidden-2", "c"]);
+  assert.deepEqual(plain(helpers.moveVisibleIds(orderItems, visibleIds, "c", -1)), ["a", "hidden-1", "c", "hidden-2", "b"]);
+  assert.deepEqual(plain(helpers.moveVisibleIds(orderItems, visibleIds, "a", -1)), orderItems.map((item) => item.id));
+  assert.deepEqual(plain(helpers.moveVisibleIds(orderItems, visibleIds, "c", 1)), orderItems.map((item) => item.id));
+});
+
+test("filtered reorder always remains a full permutation with fixed hidden positions", () => {
+  const items = ["a", "b", "c", "d", "e"].map((id) => ({ id }));
+  const original = items.map((item) => item.id);
+  for (let mask = 1; mask < 32; mask++) {
+    const visible = original.filter((_, index) => mask & (1 << index));
+    for (const source of visible) for (const target of visible) for (const position of ["before", "after"]) {
+      const next = plain(helpers.reorderVisibleIds(items, visible, source, target, position));
+      assert.deepEqual([...next].sort(), [...original].sort());
+      original.forEach((id, index) => {
+        if (!visible.includes(id)) assert.equal(next[index], id);
+      });
+      if (source !== target) {
+        assert.equal(position === "before" ? next.indexOf(source) < next.indexOf(target) : next.indexOf(source) > next.indexOf(target), true);
+      }
+    }
+  }
+});
+
+test("tag shortcuts toggle without duplicates and respect the tag limit", () => {
+  assert.deepEqual(plain(helpers.parseTags(helpers.toggleTagChoice("排障, 审查", "排障"))), ["审查"]);
+  assert.deepEqual(plain(helpers.parseTags(helpers.toggleTagChoice("排障", "测试"))), ["排障", "测试"]);
+  assert.deepEqual(plain(helpers.parseTags(helpers.toggleTagChoice("a,b,c,d,e", "f"))), ["a", "b", "c", "d", "e"]);
+  assert.deepEqual(plain(helpers.parseTags(helpers.toggleTagChoice("a,b,c,d,e", "c"))), ["a", "b", "d", "e"]);
+});
+
 test("both interface languages have the same translation keys", () => {
   assert.deepEqual(Object.keys(helpers.dict.zh).sort(), Object.keys(helpers.dict.en).sort());
 });

@@ -9,7 +9,9 @@ A DeepSeek Harness plugin that puts a **Prompts** button beside the conversation
 - Create, edit and delete your own templates, including title, body, category and tags.
 - Search titles, bodies and tags from a compact picker. Use ↑ / ↓, Enter and Escape.
 - Make a template available globally or in several selected project directories.
-- Pin templates and move them up or down in the manager.
+- Filter the manager by checked categories and tags, combined with text search.
+- Pin templates and drag row handles to reorder them, with keyboard controls as an alternative.
+- Reuse existing categories and tags while retaining free-text entry.
 - Keep templates in Host-managed persistent storage, shared across that Host's sessions.
 - Chinese and English interface; follows the DSH theme.
 - Inserts plain text without sending the message. A successful insertion is one undo step.
@@ -41,6 +43,8 @@ For local development, install the checkout's absolute directory through Plugin 
 2. Search and choose a template. Enter inserts the selected result; Escape closes the picker. Nothing is sent automatically.
 3. Open **Manage templates…** to create or edit templates, pin or reorder them, or delete them after confirmation.
 4. For a project-specific template, choose **Selected projects** and select one or more directories. You can change this scope when editing.
+
+Combine search with checked categories and tags in the manager: selections within a group match any value; different groups must all match. Drag row handles to reorder, or focus a handle and press ↑ / ↓. When filtering, only visible positions change; hidden rows keep their positions. Click existing categories and tags in the editor to reuse them, or type new values.
 
 Project matching uses the conversation's **exact working directory**, after path normalization. A template for `/work/app` does not automatically appear in `/work/app/subdir`. On Windows, path comparison is case-insensitive. The manager lets you manage templates from other projects as well; the picker only offers templates available in the current conversation.
 
