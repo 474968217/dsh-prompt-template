@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { TemplateStore, emptyState } from "../lib/store.js";
 
 // Only evaluate pure exports. No DOM, components, hooks or renderer are invoked.
 const source = readFileSync(new URL("../lib/client.js", import.meta.url), "utf8");
@@ -53,6 +54,35 @@ test("empty selected-project scope never silently becomes global", () => {
 test("editing a template retains its scope and body through draft conversion", () => {
   const item = { ...project, category: "Code", tags: ["a", "b"], pinned: true, body: "  Keep whitespace\n" };
   assert.deepEqual(plain(helpers.fromDraft(helpers.toDraft(item))), item);
+});
+
+test("unpinning the selected row then saving its editor must remain unpinned", async () => {
+  const store = new TemplateStore({ state: emptyState(), persist: async () => {} });
+  const item = await store.save({ template: { ...global, id: undefined, pinned: true } });
+  let draft = helpers.toDraft(item);
+  const unpinned = await store.save({ template: helpers.fromDraft({ ...helpers.toDraft(item), pinned: false }), revision: store.revision });
+  draft = helpers.syncDraftPin(draft, unpinned, item);
+  const saved = await store.save({ template: helpers.fromDraft(draft), revision: store.revision });
+  assert.equal(unpinned.pinned, false);
+  assert.equal(saved.pinned, false, "Save must not reapply the editor's stale pinned value");
+});
+
+test("pin synchronization preserves other edits, row switches and newer checkbox changes", () => {
+  const previous = { id: "a", pinned: false };
+  const saved = { id: "a", pinned: true };
+  const draft = { id: "a", pinned: false, title: "Unsaved title", body: "Unsaved body" };
+  assert.deepEqual(plain(helpers.syncDraftPin(draft, saved, previous)), { ...draft, pinned: true });
+  const other = { ...draft, id: "b" };
+  assert.equal(helpers.syncDraftPin(other, saved, previous), other);
+  assert.equal(helpers.syncDraftPin(null, saved, previous), null);
+  const newer = { ...draft, pinned: true };
+  assert.equal(helpers.syncDraftPin(newer, saved, previous), newer);
+});
+
+test("visible hints omit arrow button descriptions in both languages", () => {
+  for (const language of [helpers.dict.zh, helpers.dict.en]) {
+    for (const key of ["insertHint", "dragOrder", "reorderHint"]) assert.doesNotMatch(language[key], /[↑↓]/);
+  }
 });
 
 test("manager choices come from the full library and preserve first occurrence", () => {
