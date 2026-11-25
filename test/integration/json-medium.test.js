@@ -67,7 +67,7 @@ test("the real storage-json medium round-trips a cold reopen", { skip: runtime =
   });
   await store.ensureSeeded();
   assert.ok(written, "seeding should produce a persisted state");
-  assert.equal(written.items.length, 4);
+  assert.equal(written.items.length, 6);
 
   const root = mkdtempSync(join(tmpdir(), "dpt-json-medium-"));
   try {

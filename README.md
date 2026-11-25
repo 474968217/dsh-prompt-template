@@ -16,7 +16,9 @@ A DeepSeek Harness plugin that puts a **Prompts** button beside the conversation
 - Chinese and English interface; follows the DSH theme.
 - Inserts plain text without sending the message. A successful insertion is one undo step.
 
-Four editable Chinese examples are added on first use. Deleting all templates leaves the library empty.
+Six editable Chinese engineering prompts are added to a fresh library: understand code and call chains, implement with minimal changes, diagnose root causes, review with evidence, add valuable tests, and verify before completion. Debugging, review and verification are pinned; all six use global scope. Existing libraries are preserved on upgrade, and deleting all templates leaves the library empty.
+
+The prompts are original Chinese adaptations of engineering practices, informed by [Superpowers](https://github.com/obra/superpowers) (systematic debugging and verification) and [PGP](https://github.com/jgamblin/PGP) (review dimensions); they are not verbatim copies or bundled skills.
 
 ## Requirements
 

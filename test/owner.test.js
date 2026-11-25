@@ -44,8 +44,8 @@ test("field limits match the frozen plan", () => {
   assert.equal(LIMITS.body, 20000);
 });
 
-test("four seed templates ship, none of them scoped", () => {
-  assert.equal(SEED_TEMPLATES.length, 4);
+test("six seed templates ship, none of them scoped", () => {
+  assert.equal(SEED_TEMPLATES.length, 6);
   for (const seed of SEED_TEMPLATES) assert.deepEqual(seed.scope, { kind: "global" });
 });
 
@@ -75,7 +75,7 @@ test("a failed seed releases its domain so a retry can open again", async () => 
 
   const store = await owner.ensureStore();
   assert.equal(calls.length, 2);
-  assert.equal(store.list({ all: true }).length, 4);
+  assert.equal(store.list({ all: true }).length, 6);
   await owner.dispose();
   assert.equal(healthy.closed, 1);
 });

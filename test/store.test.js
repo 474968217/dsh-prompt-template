@@ -161,6 +161,29 @@ test("reorder requires the exact set of ids and rewrites the order", async () =>
   await assert.rejects(s.reorder({ ids: [a.id, b.id, "ghost"] }), (error) => error.code === "invalid-order");
 });
 
+test("fresh installs get the six engineering prompts with three pinned", async () => {
+  const { store: s } = makeStore();
+  await s.ensureSeeded();
+  const items = s.snapshot().items;
+  assert.deepEqual(items.map((item) => item.title), [
+    "理解代码与调用链", "最小变更实现需求", "先定位根因，再修 Bug",
+    "只报有证据的代码审查", "补有价值的测试", "完成前做证据验收",
+  ]);
+  assert.deepEqual(items.filter((item) => item.pinned).map((item) => item.category), ["调试排障", "代码审查", "交付验收"]);
+  assert.ok(items.every((item) => item.scope.kind === "global" && item.tags.length === 2));
+  assert.equal(new Set(items.map((item) => item.id)).size, 6);
+  assert.match(items[2].body, /不要堆叠猜测性补丁/);
+  assert.match(items[5].body, /不要把静态检查或模拟结果当作真实环境验收/);
+});
+
+test("new defaults do not modify an existing user's library", async () => {
+  const { store: s } = makeStore();
+  await s.save({ template: base({ title: "我的模板" }) });
+  const before = s.snapshot().items;
+  await s.ensureSeeded();
+  assert.deepEqual(s.snapshot().items, before);
+});
+
 test("ensureSeeded inserts starters once and never resurrects deleted ones", async () => {
   const { store: s } = makeStore();
   const first = await s.ensureSeeded(SEED_TEMPLATES);
