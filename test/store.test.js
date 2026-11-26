@@ -169,8 +169,9 @@ test("fresh installs get the six engineering prompts with three pinned", async (
     "理解代码与调用链", "最小变更实现需求", "先定位根因，再修 Bug",
     "只报有证据的代码审查", "补有价值的测试", "完成前做证据验收",
   ]);
-  assert.deepEqual(items.filter((item) => item.pinned).map((item) => item.category), ["调试排障", "代码审查", "交付验收"]);
-  assert.ok(items.every((item) => item.scope.kind === "global" && item.tags.length === 2));
+  assert.deepEqual(items.filter((item) => item.pinned).map((item) => item.tags[2]), ["调试排障", "代码审查", "交付验收"]);
+  assert.ok(items.every((item) => item.scope.kind === "global" && item.tags.length === 3 && !("category" in item)));
+  assert.ok(SEED_TEMPLATES.every((item) => !("category" in item)));
   assert.equal(new Set(items.map((item) => item.id)).size, 6);
   assert.match(items[2].body, /不要堆叠猜测性补丁/);
   assert.match(items[5].body, /不要把静态检查或模拟结果当作真实环境验收/);
@@ -225,6 +226,106 @@ test("normalizeState rejects corrupt documents", () => {
   const once = normalizeTemplate(base(), { newId: () => "same" });
   assert.throws(() => normalizeState({ revision: 1, items: [once, once] }), /duplicate/);
   assert.throws(() => normalizeState({ revision: 1, items: [{ ...once, createdAt: "yesterday" }] }), /createdAt/);
+});
+
+function legacyState(overrides = {}) {
+  return {
+    revision: 17,
+    seeded: true,
+    items: [{
+      id: "legacy",
+      title: "自定义标题",
+      body: "  用户正文\n保留格式  ",
+      category: "一".repeat(20),
+      tags: ["a", "b", "c", "d", "e"],
+      scope: { kind: "projects", paths: ["G:/work/custom"] },
+      pinned: false,
+      createdAt: 10,
+      updatedAt: 20,
+      lastUsedAt: 30,
+      ...overrides,
+    }],
+  };
+}
+
+test("legacy category becomes the sixth tag without truncation or implicit writes", async () => {
+  const raw = legacyState();
+  const before = JSON.parse(JSON.stringify(raw));
+  const { store, writes } = makeStore({ state: raw });
+  const migrated = store.snapshot().items[0];
+  assert.deepEqual(migrated.tags, ["a", "b", "c", "d", "e", "一".repeat(20)]);
+  const { category, tags, ...unchanged } = before.items[0];
+  const { tags: convertedTags, ...actual } = migrated;
+  assert.deepEqual(actual, unchanged, "all user content and metadata are preserved");
+  assert.deepEqual(raw, before, "normalization must not mutate the storage-domain value");
+  assert.equal(store.revision, 17);
+  await store.ensureSeeded();
+  assert.equal(writes.length, 0, "opening an already seeded library must not persist migration");
+});
+
+test("mixed old and canonical records dedupe labels without splitting punctuation", () => {
+  const raw = legacyState({ category: " CODE, review，审查 ", tags: ["First", "code, review，审查", "first", "  "] });
+  raw.items.push({ ...raw.items[0], id: "canonical", category: undefined, tags: ["新标签", "二".repeat(20)] });
+  const state = normalizeState(raw);
+  assert.deepEqual(state.items[0].tags, ["First", "code, review，审查"]);
+  assert.deepEqual(state.items[1].tags, ["新标签", "二".repeat(20)]);
+  assert.ok(state.items.every((item) => !("category" in item)));
+  assert.deepEqual(normalizeState(state), state, "canonical normalization must be idempotent");
+});
+
+test("unified limits allow six unique 20-character tags and reject overflow without writing", async () => {
+  const { store, writes } = makeStore();
+  const tags = Array.from({ length: 6 }, (_, i) => `${i}${"x".repeat(19)}`);
+  const item = await store.save({ template: base({ category: undefined, tags }) });
+  assert.deepEqual(item.tags, tags);
+  assert.deepEqual(normalizeTemplate(base({ category: tags[0].toUpperCase(), tags })).tags, tags);
+  const before = store.snapshot();
+  await assert.rejects(store.save({ template: { ...item, tags: [...tags, "seventh"] } }), /at most 6/);
+  await assert.rejects(store.save({ template: { ...item, tags: ["x".repeat(21)] } }), /at most 20/);
+  await assert.rejects(store.save({ template: { ...item, category: "new" } }), /at most 6/);
+  assert.deepEqual(store.snapshot(), before);
+  assert.equal(writes.length, 1);
+});
+
+test("saving a migrated library is revision guarded and canonical after a cold rebuild", async () => {
+  const { store, writes } = makeStore({ state: legacyState() });
+  const item = store.list({ all: true })[0];
+  await assert.rejects(store.save({ template: { ...item, title: "changed" }, revision: 16 }), (error) => error.code === "revision-conflict" && error.revision === 17);
+  assert.equal(writes.length, 0);
+  const updated = await store.save({ template: { ...item, title: "changed" }, revision: 17 });
+  assert.equal(store.revision, 18);
+  assert.deepEqual(updated.tags, item.tags);
+  assert.ok(!("category" in writes[0].items[0]));
+  const { store: cold, writes: coldWrites } = makeStore({ state: writes[0] });
+  assert.deepEqual(cold.snapshot(), store.snapshot());
+  await cold.ensureSeeded();
+  assert.equal(coldWrites.length, 0);
+});
+
+test("migration stays readable after a failed persistence and can retry at the same revision", async () => {
+  const { store, writes } = makeStore({ state: legacyState(), failOn: 1 });
+  const before = store.snapshot();
+  const item = before.items[0];
+  await assert.rejects(store.save({ template: { ...item, tags: [] }, revision: 17 }), /disk full/);
+  assert.deepEqual(store.snapshot(), before);
+  assert.equal(writes.length, 0);
+  await store.save({ template: { ...item, tags: [] }, revision: 17 });
+  assert.equal(store.revision, 18);
+  assert.deepEqual(writes[0].items[0].tags, []);
+});
+
+test("cleared migrated tags and deleted seeded records never resurrect on a cold reopen", async () => {
+  const { store, writes } = makeStore({ state: legacyState() });
+  const item = store.list({ all: true })[0];
+  await store.save({ template: { ...item, tags: [] }, revision: 17 });
+  const { store: cold, writes: coldWrites } = makeStore({ state: writes[0] });
+  await cold.ensureSeeded();
+  assert.deepEqual(cold.list({ all: true })[0].tags, []);
+  await cold.remove({ id: item.id, revision: 18 });
+  const { store: empty, writes: emptyWrites } = makeStore({ state: coldWrites[0] });
+  await empty.ensureSeeded();
+  assert.deepEqual(empty.list({ all: true }), []);
+  assert.equal(emptyWrites.length, 0);
 });
 
 test("a store can be rebuilt from its persisted state", async () => {

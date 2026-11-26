@@ -40,8 +40,8 @@ function findRuntime() {
 
 const runtime = process.env.DSH_SKIP_JSON_MEDIUM === "1" ? null : findRuntime();
 
-function runChild({ exe, adapter }, root, mode, state) {
-  const envelope = JSON.stringify({ adapter, root, mode, state });
+function runChild({ exe, adapter }, root, mode, state, extra = {}) {
+  const envelope = JSON.stringify({ adapter, root, mode, state, ...extra });
   const result = spawnSync(exe, [childScript, envelope], {
     encoding: "utf8",
     env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
@@ -50,6 +50,11 @@ function runChild({ exe, adapter }, root, mode, state) {
   });
   const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
   assert.equal(result.error, undefined, `child failed to start: ${result.error}`);
+  if (extra.expectedError) {
+    assert.notEqual(result.status, 0, "a refused legacy reader must exit unsuccessfully");
+    assert.match(output, new RegExp(extra.expectedError));
+    return output;
+  }
   assert.equal(result.status, 0, `child exited ${result.status}: ${output.slice(0, 800)}`);
   assert.match(output, new RegExp(`CHILD_DONE ${mode}`), output.slice(0, 800));
   return output;
@@ -95,6 +100,48 @@ test("the real storage-json medium round-trips a cold reopen", { skip: runtime =
       rebuilt.list({ all: true }).map((item) => item.title),
       written.items.map((item) => item.title),
     );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("legacy JSON survives a pure cold read and canonical save/reopen without resurrecting category", { skip: runtime === null && "no desktop install with app.asar found" }, () => {
+  const root = mkdtempSync(join(tmpdir(), "dpt-json-legacy-"));
+  const legacy = {
+    revision: 21, seeded: true,
+    items: [{
+      id: "legacy", title: "原始用户标题", body: "  原始用户正文\n保持格式  ",
+      category: "一".repeat(20), tags: ["a", "b", "c", "d", "e"],
+      scope: { kind: "global" }, pinned: false, createdAt: 1, updatedAt: 2, lastUsedAt: null,
+    }],
+  };
+  const stateFrom = (output) => JSON.parse(output.split("CHILD_STATE ")[1].split(/\r?\n/)[0]);
+  try {
+    runChild(runtime, root, "write", legacy, { version: 1 });
+    const file = join(root, `${DOMAIN_NAME}.json`);
+    const originalBytes = readFileSync(file, "utf8");
+    const migrated = stateFrom(runChild(runtime, root, "store-read"));
+    assert.deepEqual(migrated, normalizeState(legacy));
+    assert.equal(migrated.revision, 21);
+    assert.equal(readFileSync(file, "utf8"), originalBytes, "a cold decode must not rewrite the legacy document");
+    assert.deepEqual(stateFrom(runChild(runtime, root, "read", undefined, { version: 1 })), legacy, "the old reader can still open an untouched v1 file");
+
+    const template = { ...migrated.items[0], tags: [] };
+    const saved = stateFrom(runChild(runtime, root, "save", undefined, { template, revision: 21 }));
+    assert.equal(saved.revision, 22);
+    assert.deepEqual(saved.items[0].tags, []);
+    assert.ok(!("category" in saved.items[0]));
+    const document = JSON.parse(readFileSync(file, "utf8"));
+    assert.equal(document.unit.version, DOMAIN_VERSION);
+    assert.deepEqual(document.global, saved);
+    const savedBytes = readFileSync(file, "utf8");
+    const reopened = stateFrom(runChild(runtime, root, "store-read"));
+    assert.deepEqual(reopened, saved);
+    assert.equal(reopened.items[0].title, legacy.items[0].title);
+    assert.equal(reopened.items[0].body, legacy.items[0].body);
+    assert.equal(readFileSync(file, "utf8"), savedBytes);
+    runChild(runtime, root, "read", undefined, { version: 1, expectedError: "stored version 2 is not accepted by version 1" });
+    assert.equal(readFileSync(file, "utf8"), savedBytes, "refused downgrades must not modify saved records");
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -6,12 +6,12 @@ A DeepSeek Harness plugin that puts a **Prompts** button beside the conversation
 
 ## Features
 
-- Create, edit and delete your own templates, including title, body, category and tags.
+- Create, edit and delete your own templates, including title, body and a single set of tags.
 - Search titles, bodies and tags from a compact picker. Use ↑ / ↓, Enter and Escape.
 - Make a template available globally or in several selected project directories.
-- Filter the manager by checked categories and tags, combined with text search.
+- Filter the manager by checked tags, combined with text search.
 - Pin templates and drag row handles to reorder them, with keyboard controls as an alternative.
-- Reuse existing categories and tags while retaining free-text entry.
+- Reuse tags from the full library, add your own, and remove selected tag chips.
 - Keep templates in Host-managed persistent storage, shared across that Host's sessions.
 - Chinese and English interface; follows the DSH theme.
 - Inserts plain text without sending the message. A successful insertion is one undo step.
@@ -48,7 +48,9 @@ For local development, install the checkout's absolute directory through Plugin 
 
 The manager's left pane handles selection and ordering. Pin and delete actions belong to the current template's header on the right; deletion names the template, and Save/Cancel stay in a fixed footer. Narrow windows switch between library and editor views while protecting unsaved edits when going back.
 
-Combine search with checked categories and tags in the manager: selections within a group match any value; different groups must all match. Drag row handles to reorder, or focus a handle and press ↑ / ↓. When filtering, only visible positions change; hidden rows keep their positions. Click existing categories and tags in the editor to reuse them, or type new values.
+Combine search with checked tags in the manager: a template must match the search text and any selected tag. Tag choices come from the full library, even while the list is filtered. In the editor, click an existing tag to reuse it or type new tags and press Enter or **Add tags**; commas separate new entries. Save also includes any pending tag text. Remove selected tags using their chips. Each template supports up to 6 tags of 20 characters each; surrounding whitespace and case-insensitive duplicates are removed.
+
+Drag row handles to reorder, or focus a handle and press ↑ / ↓. When filtering, only visible positions change; hidden rows keep their positions.
 
 Project matching uses the conversation's **exact working directory**, after path normalization. A template for `/work/app` does not automatically appear in `/work/app/subdir`. On Windows, path comparison is case-insensitive. The manager lets you manage templates from other projects as well; the picker only offers templates available in the current conversation.
 
@@ -59,6 +61,8 @@ Opening the picker captures the original insertion position. If the draft change
 Data stays with the DSH Host rather than the browser's local storage or this Git repository. Refreshing a page does not reset the library. Uninstalling the package does not intentionally erase the Host's template data. Project scope controls where templates are offered; it is not an access-control boundary between Host users.
 
 To upgrade, choose the desired newer commit and update the GitHub installation reference through Plugin Manager. Keep the same package name and Host storage. If DSH rejects the declared compatibility range, use a compatible plugin release rather than bypassing the version check.
+
+The tags-only model reads version 1 libraries without rewriting them or increasing their revision. Existing tags retain their order and spelling; a nonempty legacy category is appended as one tag, including any commas, then whitespace and case-insensitive duplicates are removed. The first successful normal mutation (save, delete, pin, reorder or recorded use) persists the canonical tags-only library in storage-domain version 2. Older version 1 readers reject that file, so retain a backup before downgrading. This conversion preserves user templates and does not restore deleted defaults.
 
 ## Development
 

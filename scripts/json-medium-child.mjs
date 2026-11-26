@@ -11,8 +11,11 @@
  *
  * argv[2] is a JSON envelope: `{ adapter, root, mode, state? }`.
  */
+import { DOMAIN_NAME, DOMAIN_VERSION, DOMAIN_COMPATIBLE_VERSIONS } from "../lib/index.js";
+import { createStateSchema, TemplateStore } from "../lib/store.js";
+
 const envelope = JSON.parse(process.argv[2] ?? "{}");
-const { adapter, root, mode, state } = envelope;
+const { adapter, root, mode, state, template, revision } = envelope;
 
 const fail = (error) => {
   console.error(`CHILD_ERROR ${error?.stack ?? error}`);
@@ -29,8 +32,9 @@ if (typeof JsonStorageBackend !== "function") fail(new Error("adapter did not ex
 // The descriptor mirrors what our host half passes to `ctx.storageDomain.open`
 // (single layout, one global slot, no record tables used by this plugin).
 const descriptor = {
-  name: "prompt_templates",
-  version: 1,
+  name: DOMAIN_NAME,
+  version: envelope.version ?? DOMAIN_VERSION,
+  compatibleVersions: envelope.compatibleVersions ?? (envelope.version === undefined ? DOMAIN_COMPATIBLE_VERSIONS : []),
   tables: [],
   hasGlobal: true,
   layout: "single",
@@ -45,6 +49,17 @@ try {
   } else if (mode === "read") {
     const snapshot = await unit.loadAll();
     process.stdout.write(`CHILD_STATE ${JSON.stringify(snapshot.global)}\n`);
+  } else if (mode === "store-read" || mode === "save") {
+    const snapshot = await unit.loadAll();
+    // The production schema and store exercise the same conversion as a domain
+    // open; all writes still go through the real medium in this isolated root.
+    const store = new TemplateStore({
+      state: createStateSchema().parse(snapshot.global),
+      persist: (next) => unit.setGlobal(next),
+    });
+    await store.ensureSeeded();
+    if (mode === "save") await store.save({ template, revision });
+    process.stdout.write(`CHILD_STATE ${JSON.stringify(store.snapshot())}\n`);
   } else {
     fail(new Error(`unknown mode '${mode}'`));
   }

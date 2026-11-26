@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { createStorageOwner, isSameOriginWrite } from "../lib/index.js";
+import { createStorageOwner, DOMAIN_COMPATIBLE_VERSIONS, DOMAIN_VERSION, isSameOriginWrite } from "../lib/index.js";
 import { emptyState, LIMITS, SEED_TEMPLATES } from "../lib/store.js";
 
 /** A storage domain stand-in that records how often it was closed. */
@@ -36,11 +36,10 @@ function makeCtx(open) {
   };
 }
 
-test("field limits match the frozen plan", () => {
+test("unified tag limits preserve a legacy category and all five old tags", () => {
   assert.equal(LIMITS.title, 60);
-  assert.equal(LIMITS.category, 20);
-  assert.equal(LIMITS.tags, 5);
-  assert.equal(LIMITS.tag, 12);
+  assert.equal(LIMITS.tags, 6);
+  assert.equal(LIMITS.tag, 20);
   assert.equal(LIMITS.body, 20000);
 });
 
@@ -56,8 +55,47 @@ test("concurrent ensureStore calls share one open", async () => {
   const [a, b] = await Promise.all([owner.ensureStore(), owner.ensureStore()]);
   assert.equal(a, b);
   assert.equal(calls.length, 1);
+  assert.equal(calls[0].version, DOMAIN_VERSION);
+  assert.equal(DOMAIN_VERSION, 2);
+  assert.deepEqual(calls[0].compatibleVersions, DOMAIN_COMPATIBLE_VERSIONS);
+  assert.deepEqual(DOMAIN_COMPATIBLE_VERSIONS, [1]);
   await owner.dispose();
   assert.equal(domain.closed, 1);
+});
+
+test("opening a legacy domain normalizes tags without rewriting user storage", async () => {
+  const stored = {
+    revision: 8,
+    seeded: true,
+    items: [{
+      id: "mine", title: "我的模板", body: "自定义内容", category: "一".repeat(20),
+      tags: ["a", "b", "c", "d", "e"], scope: { kind: "global" }, pinned: false,
+      createdAt: 1, updatedAt: 2, lastUsedAt: 3,
+    }],
+  };
+  const domain = makeDomain(stored);
+  let writes = 0;
+  const set = domain.global.set;
+  domain.global.set = async (next) => { writes += 1; await set(next); };
+  const { ctx, calls } = makeCtx(async () => domain);
+  const owner = createStorageOwner(ctx);
+  const store = await owner.ensureStore();
+  assert.equal(store.revision, 8);
+  assert.deepEqual(store.list({ all: true })[0].tags, ["a", "b", "c", "d", "e", "一".repeat(20)]);
+  assert.equal(writes, 0);
+  assert.equal(domain.state, stored);
+  const parsed = calls[0].global.schema.parse(stored);
+  assert.ok(!("category" in parsed.items[0]));
+  assert.equal(parsed.items[0].title, "我的模板");
+  await store.save({ template: { ...store.list({ all: true })[0], tags: [] }, revision: 8 });
+  assert.equal(writes, 1);
+  assert.deepEqual(domain.state.items[0].tags, []);
+  assert.ok(!("category" in domain.state.items[0]));
+  await owner.dispose();
+  const { ctx: coldCtx } = makeCtx(async () => makeDomain(domain.state));
+  const cold = createStorageOwner(coldCtx);
+  assert.deepEqual((await cold.ensureStore()).list({ all: true })[0].tags, []);
+  await cold.dispose();
 });
 
 test("a failed seed releases its domain so a retry can open again", async () => {

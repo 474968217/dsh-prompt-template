@@ -53,7 +53,8 @@ test("empty selected-project scope never silently becomes global", () => {
 
 test("editing a template retains its scope and body through draft conversion", () => {
   const item = { ...project, category: "Code", tags: ["a", "b"], pinned: true, body: "  Keep whitespace\n" };
-  assert.deepEqual(plain(helpers.fromDraft(helpers.toDraft(item))), item);
+  const { category, ...canonical } = item;
+  assert.deepEqual(plain(helpers.fromDraft(helpers.toDraft(item))), { ...canonical, tags: ["a", "b", category] });
 });
 
 test("unpinning the selected row then saving its editor must remain unpinned", async () => {
@@ -94,11 +95,11 @@ test("manager choices come from the full library and preserve first occurrence",
     { category: " 开发 ", tags: [" 排障 ", " "] },
   ];
   assert.deepEqual(plain(helpers.collectTemplateChoices(items)), {
-    categories: ["开发", "写作"], tags: ["排障", "审查", "测试"],
+    tags: ["排障", "审查", "开发", "测试", "写作"],
   });
 });
 
-test("manager checkbox filters use OR within dimensions and AND across dimensions and query", () => {
+test("manager tag checkbox filters use OR and combine with text search by AND", () => {
   const items = [
     { id: "a", title: "修复接口", category: "开发", tags: [" 排障 "] },
     { id: "b", title: "修复文案", category: "写作", tags: ["排障", "审查"] },
@@ -106,10 +107,11 @@ test("manager checkbox filters use OR within dimensions and AND across dimension
     { id: "d", title: "修复设计", category: "设计", tags: ["审查"] },
   ];
   const ids = (...args) => plain(helpers.filterManageTemplates(items, ...args)).map((item) => item.id);
-  assert.deepEqual(ids("", [], []), ["a", "b", "c", "d"]);
-  assert.deepEqual(ids("修复", ["开发", "写作"], ["排障", "测试"]), ["a", "b"]);
-  assert.deepEqual(ids("接口", ["开发"], ["测试"]), ["c"]);
-  assert.deepEqual(ids("", ["不存在"], []), []);
+  assert.deepEqual(ids("", []), ["a", "b", "c", "d"]);
+  assert.deepEqual(ids("修复", ["开发", "写作"]), ["a", "b"]);
+  assert.deepEqual(ids("接口", ["测试"]), ["c"]);
+  assert.deepEqual(ids("", ["不存在"]), []);
+  assert.deepEqual(ids("修复", [" 排障 ", "审查"]), ["a", "b", "d"]);
 });
 
 const orderItems = ["a", "hidden-1", "b", "hidden-2", "c"].map((id) => ({ id }));
@@ -159,8 +161,46 @@ test("filtered reorder always remains a full permutation with fixed hidden posit
 test("tag shortcuts toggle without duplicates and respect the tag limit", () => {
   assert.deepEqual(plain(helpers.parseTags(helpers.toggleTagChoice("排障, 审查", "排障"))), ["审查"]);
   assert.deepEqual(plain(helpers.parseTags(helpers.toggleTagChoice("排障", "测试"))), ["排障", "测试"]);
-  assert.deepEqual(plain(helpers.parseTags(helpers.toggleTagChoice("a,b,c,d,e", "f"))), ["a", "b", "c", "d", "e"]);
+  assert.deepEqual(plain(helpers.toggleTagChoice("a,b,c,d,e", "f")), ["a", "b", "c", "d", "e", "f"]);
+  assert.deepEqual(plain(helpers.toggleTagChoice(["a", "b", "c", "d", "e", "f"], "g")), ["a", "b", "c", "d", "e", "f"]);
   assert.deepEqual(plain(helpers.parseTags(helpers.toggleTagChoice("a,b,c,d,e", "c"))), ["a", "b", "d", "e"]);
+});
+
+test("legacy category remains atomic and tags use the same canonical model as the host", async () => {
+  const legacy = { ...global, category: "开发,设计，审查", tags: [" Review ", "review", " TEST "] };
+  const draft = helpers.toDraft(legacy);
+  assert.deepEqual(plain(draft.tags), ["Review", "TEST", "开发,设计，审查"]);
+  assert.equal(draft.tagInput, "");
+  assert.equal("category" in draft, false);
+  assert.deepEqual(plain(helpers.templateTags(legacy)), plain(draft.tags));
+  assert.deepEqual(plain(helpers.collectTemplateChoices([legacy, { tags: ["test", "new"] }])), { tags: ["Review", "TEST", "开发,设计，审查", "new"] });
+  const store = new TemplateStore({ state: emptyState(), persist: async () => {} });
+  const saved = await store.save({ template: { ...helpers.fromDraft(draft), id: undefined } });
+  assert.deepEqual(saved.tags, plain(draft.tags));
+  assert.equal("category" in saved, false);
+  const cleared = await store.save({ template: helpers.fromDraft({ ...helpers.toDraft(saved), tags: [], tagInput: "" }), revision: store.revision });
+  assert.deepEqual(cleared.tags, []);
+});
+
+test("pending tag input is saved and validated without truncating legacy labels", () => {
+  const draft = { ...helpers.toDraft(global), tags: ["原子,标签", "a", "b", "c", "d"], tagInput: " e, A " };
+  assert.deepEqual(plain(helpers.fromDraft(draft)).tags, ["原子,标签", "a", "b", "c", "d", "e"]);
+  assert.deepEqual(plain(helpers.draftErrors(draft)), []);
+  assert.ok(helpers.draftErrors({ ...draft, tagInput: "e,f" }).includes("tooManyTags"));
+  assert.ok(helpers.draftErrors({ ...draft, tagInput: "x".repeat(21) }).includes("tagTooLong"));
+  assert.equal(helpers.draftIsValid({ ...helpers.toDraft(global), tags: ["x".repeat(20)] }), true);
+  assert.deepEqual(plain(helpers.toggleTagChoice([" Review ", "原子,标签"], "review")), ["原子,标签"]);
+});
+
+test("selecting then removing a pending tag cannot resurrect it on save", () => {
+  const draft = { ...helpers.toDraft(global), tags: [], tagInput: " Review, keep " };
+  const selected = { ...draft, ...helpers.toggleDraftTag(draft, "review") };
+  assert.deepEqual(plain(selected.tags), ["review"]);
+  assert.equal(selected.tagInput, "keep");
+  const removed = { ...selected, ...helpers.toggleDraftTag(selected, "REVIEW") };
+  assert.deepEqual(plain(helpers.fromDraft(removed)).tags, ["keep"]);
+  const duplicate = { ...helpers.toDraft(global), tags: ["Review"], tagInput: "review, keep" };
+  assert.deepEqual(plain(helpers.fromDraft({ ...duplicate, ...helpers.toggleDraftTag(duplicate, "Review") })).tags, ["keep"]);
 });
 
 test("both interface languages have the same translation keys", () => {
