@@ -61,6 +61,10 @@
 
 本轮 `npm pack --dry-run` 确认 14 个文件齐全。已对 linked 插件调用 `set_plugin enabled:true` 触发重组，返回 `application: applied`、`changed: false`；重组时仍有既有 cua 缺少 binary 的警告。该结果表示宿主重组已应用，不能据此认定浏览器已加载本轮新 UI 或交互验收通过。
 
+## 选择浮层尺寸 / Picker size
+
+2026-11-26：按用户截图将提示词选择浮层由宽 408 px、最大高 440 px 调整为宽 560 px、最大高 600 px。尺寸受视口可用空间约束，四周保留 8 px，默认向上展开，必要时向下展开。语法及差异检查、4 组视口尺寸算术边界检查通过，独立静态 UX 复核无阻断问题；当前 linked 插件已重组，返回 `application: applied`。真实页面视觉及小窗口边界仍待交互验证。
+
 ## 尚待交互验收 / Interactive acceptance pending
 
 当前会话没有可操作的已认证浏览器控制连接。未使用其他浏览器配置、认证令牌搜索或模拟 React/DOM 渲染代替真机验收。历史 `docs/mockup/` 内容只是设计参考。
