@@ -65,6 +65,18 @@
 
 2026-11-26：按用户截图将提示词选择浮层由宽 408 px、最大高 440 px 调整为宽 560 px、最大高 600 px。尺寸受视口可用空间约束，四周保留 8 px，默认向上展开，必要时向下展开。语法及差异检查、4 组视口尺寸算术边界检查通过，独立静态 UX 复核无阻断问题；当前 linked 插件已重组，返回 `application: applied`。真实页面视觉及小窗口边界仍待交互验证。
 
+## 无损导入导出 / Lossless import and export
+
+2026-11-28：按用户要求实现批量导入导出，验收标准为「同一份库导出后导回，字段逐字节一致」。三处原有有损规则被推翻：不存在的项目目录不再改写为全局（保留原路径并提示）、Markdown 每条携带完整元信息、整批上限提高到 50 文件 / 8 MiB / 2000 条。格式与接口契约见 [import-export.md](import-export.md)。
+
+新增 `lib/format.js` 负责两种格式的序列化与解析；`lib/store.js` 增加 `importTemplates`，批量前置校验后经既有队列一次写入；`lib/index.js` 新增 `GET /export`、`POST /export`（子集 ids 走请求体，避免长 URL 触达请求行上限）、`POST /import/preview`、`POST /import/commit`，这三条路由正文上限单独放宽到 32 MiB，其余写路由仍为 256 KiB。Markdown 元信息包含 id、标签、范围、置顶、三个时间戳与正文 sha256，正文按最长内部围栏自动加长包在反引号围栏内，且逐字节照抄（不归一化换行、不剥正文 BOM、不 trim），因此正文含 `##`、三连反引号、CRLF 混合、纯 CRLF 文件、emoji 都不会被改写或重新分段；标题含换行时另外用 `metadata.title` 承载。
+
+独立只读复核（subagent `io-review`，探针在 `C:\Users\Public\dpt-review-probe*.mjs`，未改仓库）确认「插件自己写出的库」JSON 与 Markdown 逐字节无损，同时找出 3 个 P1 与 8 个 P2，均已修复并补回归：Markdown 混用换行被静默归一化（`"a\r\nb\nc"` 曾被改成全 CRLF 且 sha256 自校验照样通过）、`body-edited` 警告客户端从不显示、无筛选 Markdown 导出把全部 id 拼进 GET query 导致约 445 条以上必然 431；以及正文开头 BOM、多行标题折叠、未闭合围栏吞掉后续条目、一个过新 `formatVersion` 文件炸掉整批、`{` 开头的 `.md` 被当 JSON、截断元信息注释被当正文、取消文件对话框后草稿已不可恢复。现在的行为：解析只按 `\n` 切行并保留行尾 `\r`，整份文件全为 `\r\n` 时才按 CRLF 模式读；过新版本只让该文件/该条 invalid，其余照常导入；扩展名先于内容嗅探；警告在条目行与底栏合计都可见；无筛选导出走 `GET /export`，有筛选走 `POST /export` 并带 ids。
+
+真实库往返核对：脚本 `C:\Users\Administrator\AppData\Local\Temp\dpt-roundtrip.mjs` 伪造 `req`/`res` 直调 `createRouteHandler`，对真实存储文件（10 条）追加 2 条合成极端条目（正文含 `##` 与围栏、CRLF 结尾、emoji）共 12 条，27 项检查全部通过：JSON 与 Markdown 各自 export → preview → commit 后逐字段一致；把自己导出的文件导回时全部判为 identical 且内容不变；导出为纯读，revision 不变；文件名符合 `dsh-prompt-templates-YYYYMMDD-HHmm.json|.md`；手写 Markdown 导为全局、无标签、不置顶；子集导出、未知 id 400、`formatVersion` 过高被拒。脚本结束后真实库文件 sha256 未变。
+
+自动测试 126 项全部通过、无跳过（客户端 27 项、导入 32 项，其余为 store/http/host/介质用例）；`npm run check` 与 `git diff --check` 通过。词典自检 zh 与 en 键集一致、无单侧缺失与重复；新增行无十六进制颜色，背景只用主题 token。未做浏览器视觉、主题、窄屏断点、读屏与键盘焦点实测；「无损」只对插件自己写出、未被外部工具改写的文件成立，被外部改写（去尾随空格、改换行、重排缩进）的文件会按实际内容导入并标 `body-edited` 警告，而不是失败。
+
 ## 尚待交互验收 / Interactive acceptance pending
 
 当前会话没有可操作的已认证浏览器控制连接。未使用其他浏览器配置、认证令牌搜索或模拟 React/DOM 渲染代替真机验收。历史 `docs/mockup/` 内容只是设计参考。
@@ -81,6 +93,7 @@
 8. 同时在两页编辑，旧版本保存应提示冲突并保留表单，刷新后重试。
 9. 刷新页面及退出、重新启动 DSH，确认保存内容、标签、顺序和范围仍在；将示例全部删除后，不应再次自动填充。
 10. 检查中英文切换、明暗主题、窄窗口、原生输入法与 Enter 行为、键盘焦点、面板滚动、标题区删除确认和点击外部关闭。
+11. 导入导出：导出 JSON 与 Markdown 各一份，改一条本地内容后导入，确认预览把该条列为冲突、默认保留本地、勾选后改用导入版本并核对结果；把导出的文件原样导回应全部为「无变化」；用手写 Markdown 验证 `##` 分段与全局/无标签/不置顶；再用手写文件验证正文含混合换行、三连反引号与行首 `##` 时往返逐字节一致；用外部编辑器改掉某个导出文件正文里的一个空格后导入，确认该条出现可见的「正文被外部修改」警告且底栏合计包含它；在有筛选（数百条）时导出 Markdown，确认不再出现 431；检查文件选择框（取消后草稿仍在）、失败提示条、底栏计数、Tab 顺序与焦点回落，以及 860/640 px 断点下的对照区布局。
 
 ## 自动化测试说明 / Automated tests
 

@@ -1,7 +1,7 @@
 {
   "name": "dsh-prompt-template",
-  "version": "0.1.0",
-  "description": "Prompt templates for DeepSeek Harness Web: pick a saved prompt beside the composer and insert it at the caret.",
+  "version": "0.2.0",
+  "description": "Prompt templates for DeepSeek Harness Web: pick a saved prompt beside the composer, insert it at the caret, and export or import the whole library losslessly.",
   "license": "MIT",
   "author": "474968217",
   "repository": {
@@ -35,6 +35,7 @@
     "docs/plan.md",
     "docs/ui-spec-prompt-picker.md",
     "docs/verification.md",
+    "docs/import-export.md",
     "LICENSE"
   ],
   "engines": {

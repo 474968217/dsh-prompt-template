@@ -15,6 +15,7 @@ A DeepSeek Harness plugin that puts a **Prompts** button beside the conversation
 - Keep templates in Host-managed persistent storage, shared across that Host's sessions.
 - Chinese and English interface; follows the DSH theme.
 - Inserts plain text without sending the message. A successful insertion is one undo step.
+- Export the library to JSON (full backup) or Markdown, and import either back without losing a field; conflicts are reviewed before anything is written.
 
 Six editable Chinese engineering prompts are added to a fresh library: understand code and call chains, implement with minimal changes, diagnose root causes, review with evidence, add valuable tests, and verify before completion. Debugging, review and verification are pinned; all six use global scope. Existing libraries are preserved on upgrade, and deleting all templates leaves the library empty.
 
@@ -45,6 +46,7 @@ For local development, install the checkout's absolute directory through Plugin 
 2. Search and choose a template. Enter inserts the selected result; Escape closes the picker. Nothing is sent automatically.
 3. Open **Manage templates…** to create or edit templates, pin or reorder them, or delete them after confirmation.
 4. For a project-specific template, choose **Selected projects** and select one or more directories. You can change this scope when editing.
+5. Use **Export** in the manager header to save the library, and **Import** to read a previous export or a hand-written Markdown file.
 
 The manager's left pane handles selection and ordering. Pin and delete actions belong to the current template's header on the right; deletion names the template, and Save/Cancel stay in a fixed footer. Narrow windows switch between library and editor views while protecting unsaved edits when going back.
 
@@ -64,6 +66,14 @@ To upgrade, choose the desired newer commit and update the GitHub installation r
 
 The tags-only model reads version 1 libraries without rewriting them or increasing their revision. Existing tags retain their order and spelling; a nonempty legacy category is appended as one tag, including any commas, then whitespace and case-insensitive duplicates are removed. The first successful normal mutation (save, delete, pin, reorder or recorded use) persists the canonical tags-only library in storage-domain version 2. Older version 1 readers reject that file, so retain a backup before downgrading. This conversion preserves user templates and does not restore deleted defaults.
 
+## Import and export
+
+**Export JSON** writes the whole library: every template's id, title, body, tags, scope, pinned flag, order and three timestamps. **Export Markdown** writes the manager's current filter result (everything when no filter is set) as readable Markdown. Each entry keeps a single HTML-comment metadata line and puts the body inside a backtick fence that is made longer than the longest fence inside the body, so a body containing `##`, triple backticks or CRLF still round-trips exactly.
+
+Importing either format reproduces those fields unchanged. A Markdown file without that metadata line is treated as hand-written: `## ` starts a new template, the rest of the first line is the title, and the template becomes global with no tags and no pin, because the file never carried that information. If an external tool rewrote an exported file (trailing whitespace, line endings, re-indentation), the affected entry still imports as written and its preview row carries a visible “body edited outside the extension” warning instead of failing silently. The byte-level contract, including the sha256 check that proves a body was reproduced exactly, is documented in [the import/export contract](docs/import-export.md).
+
+Import never writes before you confirm. The preview classifies every entry as new, conflicting or invalid and shows the counts plus the source file; conflicts match by id or by trimmed, lower-cased title. Conflicting rows keep the local version by default and offer the imported one per row, with bulk buttons for both. Commit sends the previewed files and your choices in one request: the Host re-parses, validates the revision guard and writes the whole batch through one storage transaction. Entries pointing at project directories this Host cannot see keep their paths and are reported instead of silently becoming global. A batch is limited to 50 files, 8 MiB of text and 2000 templates; exceeding a limit rejects the batch rather than truncating it.
+
 ## Development
 
 ```sh
@@ -72,7 +82,7 @@ npm test
 npm pack --dry-run
 ```
 
-The Host entry is `lib/index.js`, the data model is `lib/store.js`, and the Client entry is the hand-written `window.__ModuleLoader__` artifact in `lib/client.js`. React comes from the DSH module table. Never install a second React runtime into the page.
+The Host entry is `lib/index.js`, the data model is `lib/store.js`, the import/export format is `lib/format.js`, and the Client entry is the hand-written `window.__ModuleLoader__` artifact in `lib/client.js`. React comes from the DSH module table. Never install a second React runtime into the page.
 
 The composer contribution uses `conversation.input.left` with id `prompt-template-trigger`. Overlays are rendered through React portals so the sticky composer does not clip them. Plugin resources are disposed with their Cordis context.
 
@@ -80,7 +90,8 @@ See [the implementation plan](docs/plan.md) and [verification record](docs/verif
 
 ## Limitations
 
-- No variable substitution, Markdown preview, import/export, slash trigger or global shortcut in v0.1.
+- No variable substitution, Markdown preview, slash trigger or global shortcut.
+- Hand-written Markdown cannot restore metadata it never had; use a JSON or generated Markdown export when the round trip must be exact.
 - One DSH Host process owns the data; multiple processes writing the same storage are unsupported.
 - Project templates match exact directories, including separate worktrees as separate paths.
 - Remote and custom file-system workspace behavior has not been verified.

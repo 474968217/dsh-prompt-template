@@ -10,6 +10,9 @@ let entry;
 vm.runInNewContext(source, {
   window: { __ModuleLoader__: { load(value) { entry = value; } } },
   navigator: { userAgent: "Windows" },
+  TextDecoder,
+  TextEncoder,
+  URLSearchParams,
 }, { timeout: 1000 });
 const client = entry.factory((id) => {
   assert.ok(["react", "react-dom"].includes(id));
@@ -205,4 +208,125 @@ test("selecting then removing a pending tag cannot resurrect it on save", () => 
 
 test("both interface languages have the same translation keys", () => {
   assert.deepEqual(Object.keys(helpers.dict.zh).sort(), Object.keys(helpers.dict.en).sort());
+});
+
+test("utf-8 import decoding strips a BOM and rejects invalid bytes per file", () => {
+  assert.deepEqual(plain(helpers.decodeUtf8(new TextEncoder().encode("中文 title\nbody"))), { ok: true, text: "中文 title\nbody" });
+  // A BOM is consumed, never handed to the JSON parser.
+  assert.deepEqual(plain(helpers.decodeUtf8(new TextEncoder().encode("\uFEFF{\"version\":1}"))), { ok: true, text: "{\"version\":1}" });
+  assert.deepEqual(plain(helpers.decodeUtf8(new Uint8Array([0x7b, 0xff, 0xfe, 0x7d]))), { ok: false, reason: "decode" });
+  const pre = plain(helpers.precheckImportFiles([{ name: "a.json", size: 4 }, { name: "b.md", size: 6 }]));
+  assert.deepEqual(pre, { count: 2, totalBytes: 10, tooManyFiles: false, tooLarge: false });
+  assert.equal(helpers.precheckImportFiles(Array.from({ length: 51 }, () => ({ size: 1 }))).tooManyFiles, true);
+  assert.equal(helpers.precheckImportFiles([{ name: "a.json", size: helpers.IMPORT_LIMITS.bytes + 1 }]).tooLarge, true);
+});
+
+test("import preview totals drive the summary bar and the write count", () => {
+  const entries = [
+    { at: "f0#1", kind: "add", title: "A" },
+    { at: "f0#2", kind: "identical", title: "B" },
+    { at: "f0#3", kind: "conflict", title: "C", local: {}, incoming: {} },
+    { at: "f0#4", kind: "conflict", title: "D", local: {}, incoming: {}, missingPaths: ["G:/x"] },
+    { at: "f0#5", kind: "invalid", title: "E", reason: "body-empty" },
+  ];
+  // Every conflict keeps the local record until that row is switched.
+  const defaults = plain(helpers.defaultImportResolutions(entries));
+  assert.deepEqual(defaults, { "f0#3": "local", "f0#4": "local" });
+  assert.deepEqual(plain(helpers.importSummary(entries, defaults)), {
+    add: 1, conflict: 2, identical: 1, invalid: 1, missingPaths: 1, overwrite: 0, keptLocal: 2, warnings: 0, total: 5, skip: 3, write: 1,
+  });
+  const flipped = plain(helpers.importSummary(entries, { "f0#3": "import" }));
+  assert.equal(flipped.overwrite, 1);
+  assert.equal(flipped.write, 2);
+  assert.equal(flipped.skip, 2);
+  assert.deepEqual(plain(helpers.importResolutions(entries, "import")), { "f0#3": "import", "f0#4": "import" });
+  assert.deepEqual(plain(helpers.importResolutions(entries, "local")), { "f0#3": "local", "f0#4": "local" });
+});
+
+test("conflicts are written from the local version unless switched", () => {
+  assert.equal(helpers.importResolution({}, "f0#1"), "local");
+  assert.equal(helpers.importResolution(null, "f0#1"), "local");
+  assert.equal(helpers.importResolution({ "f0#1": "bogus" }, "f0#1"), "local");
+  assert.equal(helpers.importResolution({ "f0#1": "import" }, "f0#1"), "import");
+  const entries = [{ at: "f0#1", kind: "conflict" }, { at: "f0#2", kind: "add" }];
+  assert.deepEqual(plain(helpers.importResolutionMap(entries, { "f0#1": "import" })), { "f0#1": "import" });
+  // A dropped key can never mean "import": the host reads it as local too.
+  assert.deepEqual(plain(helpers.importResolutionMap(entries, {})), { "f0#1": "local" });
+  const stored = { title: "t", body: "b", tags: ["a"], scope: { kind: "global", paths: [] } };
+  assert.deepEqual(plain(helpers.importDiffFields(stored, { ...stored })), []);
+  assert.deepEqual(plain(helpers.importDiffFields(stored, { ...stored, tags: ["a", "b"] })), ["tags"]);
+  assert.deepEqual(
+    plain(helpers.importDiffFields(stored, { title: "t2", body: "b2", tags: ["x"], scope: { kind: "projects", paths: ["G:/w"] } })),
+    ["title", "body", "tags", "scope"]
+  );
+});
+
+test("export menu offers a whole-library JSON backup and a filtered Markdown view", () => {
+  const items = plain(helpers.exportMenuItems());
+  assert.deepEqual(items.map((entry) => entry.format), ["json", "md"]);
+  assert.deepEqual(items.map((entry) => entry.scope), ["library", "filter"]);
+  for (const entry of items) {
+    assert.ok(entry.labelKey in helpers.dict.zh);
+    assert.ok(entry.labelKey in helpers.dict.en);
+    assert.ok(entry.hintKey in helpers.dict.zh);
+    assert.ok(entry.hintKey in helpers.dict.en);
+  }
+  // An unfiltered export sends no ids at all, so the host returns the library.
+  assert.equal(helpers.exportIds([global, project], false), null);
+  assert.deepEqual(plain(helpers.exportIds([global, project, {}], true)), [global.id, project.id]);
+  assert.equal(helpers.formatBytes(0), "0 B");
+  assert.equal(helpers.formatBytes(2048), "2.0 KB");
+});
+
+test("only a filtered Markdown export sends ids, and they travel in a POST body", () => {
+  // A whole-library export is a plain GET with no ids: a large library must not
+  // be pasted into the query string (431 request-header/URL limits).
+  assert.deepEqual(plain(helpers.exportRequest("json", null)), { method: "GET", path: "/export?format=json" });
+  assert.deepEqual(plain(helpers.exportRequest("md", null)), { method: "GET", path: "/export?format=md" });
+  assert.deepEqual(plain(helpers.exportRequest("md", [])), { method: "GET", path: "/export?format=md" });
+  // JSON is always the whole library, even when the caller passes ids by mistake.
+  assert.deepEqual(plain(helpers.exportRequest("json", [global.id])), { method: "GET", path: "/export?format=json" });
+  const filtered = plain(helpers.exportRequest("md", [global.id, project.id, ""]));
+  assert.equal(filtered.method, "POST");
+  assert.equal(filtered.path, "/export");
+  assert.deepEqual(filtered.body, { format: "md", ids: [global.id, project.id] });
+});
+
+test("body-edited warnings surface on import rows and in the totals", () => {
+  assert.equal(helpers.importWarningKey({ warning: "body-edited" }), "impBodyEdited");
+  assert.equal(helpers.importWarningKey({ warning: "" }), null);
+  assert.equal(helpers.importWarningKey({}), null);
+  assert.equal(helpers.importWarningKey(null), null);
+  // An unknown future warning is still shown rather than silently dropped.
+  assert.equal(helpers.importWarningKey({ warning: "something-new" }), "impWarning");
+  for (const key of ["impBodyEdited", "impWarning", "impWarnCount"]) {
+    assert.equal(typeof helpers.dict.zh[key], "string", key + " must exist in zh");
+    assert.equal(typeof helpers.dict.en[key], "string", key + " must exist in en");
+  }
+  const entries = [
+    { at: "f0#1", kind: "add", title: "A" },
+    { at: "f0#2", kind: "add", title: "B", warning: "body-edited" },
+    { at: "f0#3", kind: "conflict", title: "C", local: {}, incoming: {}, warning: "body-edited" },
+    // Identical/invalid rows are not written, so their warning is not counted.
+    { at: "f0#4", kind: "identical", title: "D", warning: "body-edited" },
+    { at: "f0#5", kind: "add", title: "E" },
+  ];
+  assert.equal(plain(helpers.importSummary(entries)).warnings, 2);
+  // A clean batch renders no warning line and no footer count.
+  assert.equal(plain(helpers.importSummary([{ at: "f0#1", kind: "add" }])).warnings, 0);
+});
+
+test("a cancelled file dialog never discards the draft or leaves the editor", () => {
+  const draft = { id: "a", title: "Unsaved", body: "draft", tags: [], scopeKind: "global", paths: [], tagInput: "", pinned: false };
+  for (const picked of [[], null, undefined]) {
+    for (const editor of [{ selectedId: "a", draft }, { selectedId: null, draft }, { selectedId: null, draft: null }]) {
+      assert.deepEqual(plain(helpers.importPickTransition(picked, editor)), { action: "none" });
+    }
+  }
+  const picked = [{ name: "a.json" }];
+  // Only a real pick can switch views: an edited row is reset, a new draft is dropped.
+  assert.deepEqual(plain(helpers.importPickTransition(picked, { selectedId: "a", draft })), { action: "select", id: "a" });
+  assert.deepEqual(plain(helpers.importPickTransition(picked, { selectedId: null, draft })), { action: "back" });
+  assert.deepEqual(plain(helpers.importPickTransition(picked, { selectedId: null, draft: null })), { action: "none" });
+  assert.deepEqual(plain(helpers.importPickTransition(picked, {})), { action: "none" });
 });

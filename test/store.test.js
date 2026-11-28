@@ -335,3 +335,150 @@ test("a store can be rebuilt from its persisted state", async () => {
   assert.equal(rebuilt.revision, s.revision);
   assert.equal(rebuilt.snapshot().items[0].title, "persisted");
 });
+
+/** Canonical stored record for importTemplates assertions. */
+function imported(overrides = {}) {
+  return {
+    id: "file-id",
+    title: "文件标题",
+    body: "文件正文",
+    tags: ["t"],
+    scope: { kind: "global" },
+    pinned: false,
+    createdAt: 100,
+    updatedAt: 200,
+    lastUsedAt: null,
+    ...overrides,
+  };
+}
+
+test("importTemplates appends adds in encounter order with the file's id and timestamps", async () => {
+  const { store, writes } = makeStore();
+  const result = await store.importTemplates({
+    revision: 0,
+    entries: [
+      { op: "add", at: "f0#0", template: imported({ id: "a", title: "第一个", lastUsedAt: 900 }) },
+      { op: "add", at: "f0#1", template: imported({ id: "b", title: "第二个" }) },
+    ],
+  });
+  assert.deepEqual(result, { added: 2, replaced: 0, skipped: 0, touched: [{ at: "f0#0", id: "a" }, { at: "f0#1", id: "b" }] });
+  assert.equal(writes.length, 1, "the whole batch is one write");
+  assert.equal(store.revision, 1);
+  const items = store.snapshot().items;
+  assert.deepEqual(items.map((item) => item.id), ["a", "b"]);
+  assert.equal(items[0].lastUsedAt, 900);
+  assert.equal(items[1].createdAt, 100);
+  assert.deepEqual(writes[0].items, items);
+});
+
+test("importTemplates replaces in place, keeps the local id, and takes file fields", async () => {
+  const { store, writes } = makeStore();
+  await store.save({ template: base({ title: "一", body: "一" }) });
+  await store.save({ template: base({ title: "二", body: "二" }) });
+  await store.save({ template: base({ title: "三", body: "三" }) });
+  const before = store.snapshot().items;
+  assert.equal(writes.length, 3);
+
+  const result = await store.importTemplates({
+    revision: store.revision,
+    entries: [
+      { op: "skip", at: "f0#0" },
+      { op: "replace", at: "f0#2", id: before[1].id, template: imported({ id: "ignored", title: "新的二", body: "新正文", pinned: true, createdAt: 11, updatedAt: 22, lastUsedAt: 33 }) },
+    ],
+  });
+  assert.equal(writes.length, 4, "one more write for the batch");
+  assert.deepEqual(result, { added: 0, replaced: 1, skipped: 1, touched: [{ at: "f0#2", id: before[1].id }] });
+  const items = store.snapshot().items;
+  assert.deepEqual(items.map((item) => item.id), before.map((item) => item.id), "order is stable");
+  const replaced = items[1];
+  assert.equal(replaced.id, before[1].id, "the file id never overwrites local identity");
+  assert.equal(replaced.title, "新的二");
+  assert.equal(replaced.body, "新正文");
+  assert.deepEqual(replaced.tags, ["t"]);
+  assert.equal(replaced.pinned, true);
+  assert.deepEqual([replaced.createdAt, replaced.updatedAt, replaced.lastUsedAt], [11, 22, 33]);
+  assert.deepEqual([items[0], items[2]], [before[0], before[2]], "the rest of the library is untouched");
+});
+
+test("importTemplates writes once for a no-op batch and still advances the revision", async () => {
+  const { store, writes } = makeStore();
+  await store.save({ template: base() });
+  const before = store.snapshot().items;
+  const revision = store.revision;
+
+  const result = await store.importTemplates({ revision, entries: [{ op: "skip", at: "f0#0" }, { op: "skip", at: "f0#1" }] });
+  assert.deepEqual(result, { added: 0, replaced: 0, skipped: 2, touched: [] });
+  assert.equal(writes.length, 2);
+  assert.equal(store.revision, revision + 1);
+  assert.deepEqual(store.snapshot().items, before);
+});
+
+test("importTemplates never stores two records with one id", async () => {
+  const { store } = makeStore({ state: { revision: 0, seeded: true, items: [imported({ id: "taken" })] } });
+  let counter = 0;
+  const fresh = new TemplateStore({
+    state: store.snapshot(),
+    persist: async () => {},
+    newId: () => `fresh-${(counter += 1)}`,
+  });
+  const result = await fresh.importTemplates({
+    revision: 0,
+    entries: [
+      { op: "add", at: "f0#0", template: imported({ id: "dup", title: "一" }) },
+      { op: "add", at: "f0#1", template: imported({ id: "dup", title: "二" }) },
+    ],
+  });
+  assert.deepEqual(result.touched, [{ at: "f0#0", id: "dup" }, { at: "f0#1", id: "fresh-1" }]);
+  assert.deepEqual(fresh.snapshot().items.map((item) => item.id), ["taken", "dup", "fresh-1"]);
+});
+
+test("importTemplates refuses bad batches without writing", async () => {
+  const { store, writes } = makeStore();
+  await store.save({ template: base() });
+  const before = store.snapshot();
+  const revision = store.revision;
+
+  await assert.rejects(
+    () => store.importTemplates({ revision, entries: [{ op: "replace", at: "f0#0", id: "ghost", template: imported() }] }),
+    (error) => error instanceof StoreError && error.code === "not-found" && error.id === "ghost",
+  );
+  await assert.rejects(
+    () => store.importTemplates({ revision: revision + 5, entries: [{ op: "skip", at: "f0#0" }] }),
+    (error) => error instanceof StoreError && error.code === "revision-conflict" && error.revision === revision,
+  );
+  await assert.rejects(
+    () => store.importTemplates({ revision, entries: [{ op: "delete", at: "f0#0" }] }),
+    (error) => error.code === "invalid-input",
+  );
+  await assert.rejects(
+    () =>
+      store.importTemplates({
+        revision,
+        entries: [
+          {
+            op: "add",
+            at: "f0#0",
+            template: { id: "x", title: "缺正文", tags: [], scope: { kind: "global" }, pinned: false, createdAt: 1, updatedAt: 2 },
+          },
+        ],
+      }),
+    (error) => error.code === "invalid-input" && error.field === "body",
+  );
+  await assert.rejects(() => store.importTemplates({ revision, entries: "nope" }), (error) => error.code === "invalid-input");
+
+  assert.equal(writes.length, 1, "only the initial save wrote");
+  assert.deepEqual(store.snapshot(), before);
+});
+
+test("an imported library rebuilds cold without renormalizing", async () => {
+  const { store, writes } = makeStore();
+  const result = await store.importTemplates({
+    revision: 0,
+    entries: [{ op: "add", at: "f0#0", template: imported({ id: "kept", scope: { kind: "projects", paths: ["C:\\work"] }, tags: ["中文", "emoji 🚀"] }) }],
+  });
+  assert.equal(result.added, 1);
+  const reloaded = new TemplateStore({ state: writes.at(-1), persist: async () => {} });
+  assert.deepEqual(reloaded.snapshot(), store.snapshot());
+  assert.deepEqual(reloaded.snapshot().items[0].tags, ["中文", "emoji 🚀"]);
+  assert.deepEqual(reloaded.list({ workspace: "C:\\work" }).map((item) => item.id), ["kept"]);
+});

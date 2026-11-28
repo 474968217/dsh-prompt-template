@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { Readable } from "node:stream";
 
 import { collectProjects, createRouteHandler, isSameOriginWrite, parseRequestUrl } from "../lib/index.js";
@@ -7,6 +8,7 @@ import { emptyState, SEED_TEMPLATES, TemplateStore } from "../lib/store.js";
 
 const ORIGIN = "http://127.0.0.1:3723";
 const PREFIX = "/dsh-prompt-template";
+const PACKAGE_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 
 /**
  * @param {{ workspace?: string, projects?: Array<{path: string, label?: string}>, origin?: string | null }} [options]
@@ -79,7 +81,7 @@ test("ping answers without touching storage", async () => {
   const result = await call(handler, { url: `${PREFIX}/ping` });
   assert.equal(result.status, 200);
   assert.equal(result.body.ok, true);
-  assert.equal(result.body.version, "0.1.0");
+  assert.equal(result.body.version, PACKAGE_VERSION);
 });
 
 test("unknown routes answer 404 and writes answer 405 for the wrong method", async () => {
