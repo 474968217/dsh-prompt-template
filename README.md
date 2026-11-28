@@ -30,13 +30,21 @@ This version was developed against DSH `0.2.3-alpha.2`.
 
 ## Install
 
-Open DSH's plugin management page and add the GitHub package using an **exact 40-character commit SHA** from this repository's commit history:
+Install the published package from npm through DSH's plugin management page:
+
+```text
+@474968217/dsh-prompt-template
+```
+
+Plugin Manager resolves the latest published version, pins that exact version in the profile, and reports the activation result. To upgrade later, install a newer version the same way and follow the activation guidance.
+
+To pin an immutable source instead, add this GitHub package with an **exact 40-character commit SHA** from this repository's commit history:
 
 ```text
 github:474968217/dsh-prompt-template#<40-character-commit-SHA>
 ```
 
-Replace the placeholder with a real commit SHA. A branch or tag is not an immutable installation reference. Follow the activation guidance shown by Plugin Manager.
+Replace the placeholder with a real commit SHA. A branch or tag is not an immutable installation reference.
 
 For local development, install the checkout's absolute directory through Plugin Manager; DSH links that directory. After editing an installed package, re-enable its plugin row to recompose and reload it. Check the reported activation result.
 

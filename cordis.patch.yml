@@ -1,4 +1,4 @@
 # Prompt templates beside the DSH composer.
 - insert:
     - id: prompt-template
-      name: dsh-prompt-template
+      name: '@474968217/dsh-prompt-template'

@@ -14,7 +14,7 @@
 - `README.md`、`README.zh-CN.md`：安装、使用、升级、已知限制。
 - `docs/mockup/`：历史设计参考，不能用作实际运行证据。
 
-包名 `dsh-prompt-template`，版本 `0.2.0`，MIT，兼容 `>=0.2.3-alpha.2 <0.3.0-0`。原生 ESM 宿主与手写 ModuleLoader 客户端不引入构建链。客户端仅从平台模块表加载 React 与 react-dom，不加载宿主 Client UI 包。
+包名 `@474968217/dsh-prompt-template`（npm 公开发布，安装以此为准；`github:…#<commit-SHA>` 与本地目录作为锁定源码与开发的备选方式），版本 `0.2.0`，MIT，兼容 `>=0.2.3-alpha.2 <0.3.0-0`。原生 ESM 宿主与手写 ModuleLoader 客户端不引入构建链。客户端仅从平台模块表加载 React 与 react-dom，不加载宿主 Client UI 包。
 
 ## 数据模型
 
